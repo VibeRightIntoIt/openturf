@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+This is a web app that allows door-to-door sales people to select a area on the map and have the app plan the door knocking route.
+
+Please use Shadcn for the UI, Mapbox for the map.
+
+This is a B2B app, so let's go for the clean 2026 AI B2B SaaS look for the UI/UX.

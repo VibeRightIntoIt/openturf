@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "regridsupport",
+      "source": "@regridsupport/v2.3#4fyrx5adlme5owcau",
+      "integrity": "sha512-KA6VOtVGYQzT6n7Nf5VK19M5RJfUT2DjeZyXsWP8Tgnmqhpx1Hb3MzCEJF8hbIeHt8K0Lar1NQnKsbKOwVpWig==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}
