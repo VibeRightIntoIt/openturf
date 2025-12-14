@@ -99,11 +99,6 @@ export default function Page() {
     setCurrentPolygon(null)
   }, [])
 
-  const handlePlanRoute = useCallback(() => {
-    // TODO: Implement route planning
-    console.log("Planning route for", polygonAddresses.length, "addresses")
-  }, [polygonAddresses])
-
   const handleToggleSatellite = useCallback(() => {
     mapRef.current?.toggleSatellite()
     setIsSatellite((prev) => !prev)
@@ -267,8 +262,8 @@ export default function Page() {
         addresses={polygonAddresses}
         isLoading={isLoading}
         hasPolygon={hasPolygon}
+        polygon={currentPolygon}
         onClear={handleClear}
-        onPlanRoute={handlePlanRoute}
       />
     </div>
   )
