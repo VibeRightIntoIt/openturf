@@ -16,9 +16,14 @@ export function getSupabase(): SupabaseClient {
   return supabaseInstance
 }
 
-// For backwards compatibility - lazy getter
+// Lazy-initialized supabase client
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_, prop) {
-    return (getSupabase() as Record<string | symbol, unknown>)[prop]
+    const client = getSupabase()
+    const value = client[prop as keyof SupabaseClient]
+    if (typeof value === "function") {
+      return value.bind(client)
+    }
+    return value
   },
 })
