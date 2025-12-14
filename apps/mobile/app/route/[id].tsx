@@ -9,7 +9,6 @@ import {
 } from "react-native"
 import { useLocalSearchParams, useNavigation } from "expo-router"
 import * as Location from "expo-location"
-import Mapbox from "@rnmapbox/maps"
 import BottomSheet from "@gorhom/bottom-sheet"
 import { supabase } from "../../lib/supabase"
 import { Route, RouteAddress, LeadStatus, LEAD_STATUS_CONFIG } from "../../types"
@@ -23,12 +22,23 @@ import {
 import { AddressSheet } from "../../components/AddressSheet"
 import Constants from "expo-constants"
 
-// Initialize Mapbox
-const MAPBOX_TOKEN =
-  Constants.expoConfig?.extra?.mapboxToken ||
-  process.env.EXPO_PUBLIC_MAPBOX_TOKEN ||
-  ""
-Mapbox.setAccessToken(MAPBOX_TOKEN)
+// Dynamically import Mapbox to handle Expo Go gracefully
+let Mapbox: typeof import("@rnmapbox/maps").default | null = null
+let mapboxAvailable = false
+
+try {
+  Mapbox = require("@rnmapbox/maps").default
+  const MAPBOX_TOKEN =
+    Constants.expoConfig?.extra?.mapboxToken ||
+    process.env.EXPO_PUBLIC_MAPBOX_TOKEN ||
+    ""
+  if (Mapbox && MAPBOX_TOKEN) {
+    Mapbox.setAccessToken(MAPBOX_TOKEN)
+    mapboxAvailable = true
+  }
+} catch (e) {
+  console.log("Mapbox not available (expected in Expo Go)")
+}
 
 export default function RouteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -190,11 +200,6 @@ export default function RouteScreen() {
     bottomSheetRef.current?.snapToIndex(1)
   }, [])
 
-  // Clear selection when sheet is collapsed
-  const handleClearSelection = useCallback(() => {
-    setSelectedAddress(null)
-  }, [])
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -212,18 +217,25 @@ export default function RouteScreen() {
     )
   }
 
-  // Navigation mode (user not in area)
-  if (!isWalkingMode) {
+  // Navigation mode (user not in area) or Mapbox not available
+  if (!isWalkingMode || !mapboxAvailable || !Mapbox) {
     return (
       <View style={styles.navigationModeContainer}>
         <View style={styles.navigationContent}>
           <View style={styles.navigationIcon}>
-            <Text style={styles.navigationIconText}>🚗</Text>
+            <Text style={styles.navigationIconText}>
+              {isWalkingMode ? "🚶" : "🚗"}
+            </Text>
           </View>
-          <Text style={styles.navigationTitle}>Navigate to Area</Text>
+          <Text style={styles.navigationTitle}>
+            {isWalkingMode && !mapboxAvailable
+              ? "Development Build Required"
+              : "Navigate to Area"}
+          </Text>
           <Text style={styles.navigationDescription}>
-            You're not in the route area yet. Open your maps app to navigate to{" "}
-            {route.name}.
+            {isWalkingMode && !mapboxAvailable
+              ? "The map view requires a development build. Use 'eas build --profile development' to create one."
+              : `You're not in the route area yet. Open your maps app to navigate to ${route.name}.`}
           </Text>
           <Text style={styles.addressCount}>
             {route.address_count} addresses waiting
@@ -257,7 +269,7 @@ export default function RouteScreen() {
     )
   }
 
-  // Walking mode (user in area)
+  // Walking mode with Mapbox (only in development/production builds)
   return (
     <View style={styles.container}>
       <Mapbox.MapView
@@ -397,6 +409,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1f2937",
     marginBottom: 12,
+    textAlign: "center",
   },
   navigationDescription: {
     fontSize: 15,

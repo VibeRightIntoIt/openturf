@@ -26,7 +26,6 @@ export default function RootLayout() {
           name="index"
           options={{
             title: "OpenTurf",
-            headerLargeTitle: true,
           }}
         />
         <Stack.Screen
