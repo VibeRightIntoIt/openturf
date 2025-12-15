@@ -28,6 +28,7 @@ interface MapProps {
 export interface MapRef {
   resetPolygon: () => void
   toggleSatellite: () => void
+  flyTo: (lng: number, lat: number, zoom?: number) => void
 }
 
 // Check if a point is inside a polygon using ray casting algorithm
@@ -59,6 +60,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   const markers = useRef<globalThis.Map<string, mapboxgl.Marker>>(new globalThis.Map())
   const currentPolygon = useRef<number[][] | null>(null)
   const isSatellite = useRef(false)
+  const isOverMarker = useRef(false)
 
   const handleCreate = useCallback(
     (e: { features: GeoJSON.Feature[] }) => {
@@ -110,13 +112,23 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     )
   }, [])
 
+  const flyTo = useCallback((lng: number, lat: number, zoom: number = 17) => {
+    if (!map.current) return
+    map.current.flyTo({
+      center: [lng, lat],
+      zoom,
+      duration: 1500,
+    })
+  }, [])
+
   useImperativeHandle(
     ref,
     () => ({
       resetPolygon,
       toggleSatellite,
+      flyTo,
     }),
-    [resetPolygon, toggleSatellite]
+    [resetPolygon, toggleSatellite, flyTo]
   )
 
   const emitViewportChange = useCallback(() => {
@@ -243,6 +255,14 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     map.current.on("draw.delete", handleDelete)
     map.current.on("draw.update", handleUpdate)
 
+    // Intercept clicks when over a marker to prevent drawing
+    const canvas = map.current.getCanvas()
+    canvas.addEventListener("mousedown", (e) => {
+      if (isOverMarker.current) {
+        e.stopImmediatePropagation()
+      }
+    }, true) // Use capture phase
+
     // Emit viewport changes
     map.current.on("load", emitViewportChange)
     map.current.on("moveend", emitViewportChange)
@@ -309,7 +329,9 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
             transition: all 0.15s ease;
           ">${isInPolygon && polygonIndex ? polygonIndex : ""}</div>
         `
+        // Track when mouse is over marker to prevent drawing
         el.addEventListener("mouseenter", () => {
+          isOverMarker.current = true
           const inner = el.querySelector("div") as HTMLDivElement
           if (inner) {
             inner.style.transform = "scale(1.3)"
@@ -319,6 +341,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
           el.style.zIndex = "10"
         })
         el.addEventListener("mouseleave", () => {
+          isOverMarker.current = false
           const inner = el.querySelector("div") as HTMLDivElement
           const currentlyInPolygon = polygonAddressIds.has(address.id)
           if (inner) {

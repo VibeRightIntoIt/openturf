@@ -1,11 +1,14 @@
 "use client"
 
 import { useState, useCallback, useRef, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Map, type MapRef, type Address, isPointInPolygon } from "@/components/map"
 import { AddressPanel } from "@/components/address-panel"
+import { AddressSearch } from "@/components/address-search"
 import { Button } from "@workspace/ui/components/button"
 
 export default function Page() {
+  const router = useRouter()
   const [viewportAddresses, setViewportAddresses] = useState<Address[]>([])
   const [currentPolygon, setCurrentPolygon] = useState<number[][] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -104,6 +107,10 @@ export default function Page() {
     setIsSatellite((prev) => !prev)
   }, [])
 
+  const handleAddressSelect = useCallback((lng: number, lat: number) => {
+    mapRef.current?.flyTo(lng, lat, 17)
+  }, [])
+
   // Note: For client-side access, the env var needs NEXT_PUBLIC_ prefix
   // Set NEXT_PUBLIC_MAPBOX_TOKEN in your .env file
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""
@@ -124,8 +131,9 @@ export default function Page() {
 
         {/* Floating Header */}
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 p-6">
-          <div className="flex items-start justify-between">
-            <div className="pointer-events-auto inline-flex items-center gap-3 rounded-xl border border-border/50 bg-background/80 px-5 py-3 shadow-lg backdrop-blur-md">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="pointer-events-auto inline-flex items-center gap-3 rounded-xl border border-border/50 bg-background/80 px-5 py-3 shadow-lg backdrop-blur-md">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500">
                 <svg
                   className="h-4 w-4 text-white"
@@ -153,13 +161,44 @@ export default function Page() {
               </div>
             </div>
 
+              {/* Address Search */}
+              <div className="pointer-events-auto">
+                <AddressSearch
+                  accessToken={mapboxToken}
+                  onSelect={handleAddressSelect}
+                />
+              </div>
+            </div>
+
             {/* Satellite Toggle */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleToggleSatellite}
-              className="pointer-events-auto gap-2 border-border/50 bg-background/80 shadow-lg backdrop-blur-md"
-            >
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/routes")}
+                className="gap-2 border-border/50 bg-background/80 shadow-lg backdrop-blur-md"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                  />
+                </svg>
+                Routes
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleToggleSatellite}
+                className="gap-2 border-border/50 bg-background/80 shadow-lg backdrop-blur-md"
+              >
               {isSatellite ? (
                 <svg
                   className="h-4 w-4"
@@ -191,6 +230,7 @@ export default function Page() {
               )}
               {isSatellite ? "Map" : "Satellite"}
             </Button>
+            </div>
           </div>
         </div>
 

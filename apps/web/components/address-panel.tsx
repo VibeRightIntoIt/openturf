@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { MapPin, Home, Loader2, Trash2, Save, Check } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { MapPin, Home, Loader2, Trash2, Save, Check, List } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent } from "@workspace/ui/components/card"
 import { Badge } from "@workspace/ui/components/badge"
@@ -44,6 +45,7 @@ export function AddressPanel({
   polygon,
   onClear,
 }: AddressPanelProps) {
+  const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [routeName, setRouteName] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -190,10 +192,10 @@ export function AddressPanel({
       </div>
 
       {/* Footer Actions */}
-      {addresses.length > 0 && !isLoading && (
-        <>
-          <Separator />
-          <div className="flex gap-3 p-4">
+      <Separator />
+      <div className="p-4 space-y-2">
+        {addresses.length > 0 && !isLoading && (
+          <div className="flex gap-3">
             <Button
               variant="outline"
               size="sm"
@@ -212,8 +214,17 @@ export function AddressPanel({
               Save Route
             </Button>
           </div>
-        </>
-      )}
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => router.push("/routes")}
+        >
+          <List className="mr-2 h-4 w-4" />
+          View Saved Routes
+        </Button>
+      </div>
 
       {/* Save Route Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
