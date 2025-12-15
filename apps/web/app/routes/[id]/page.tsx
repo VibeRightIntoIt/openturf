@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { MapPin, Home, Calendar, Printer, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react"
+import { MapPin, Home, Calendar, Printer, ArrowLeft, Loader2, CheckCircle2, XCircle, Clock, QrCode, Link2, Link2Off } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardHeader } from "@workspace/ui/components/card"
 import { Badge } from "@workspace/ui/components/badge"
@@ -31,6 +31,22 @@ interface RouteAddress {
   updated_at: string
 }
 
+interface TrackingCode {
+  id: string
+  code: string
+  route_id: string
+  route_address_id: string | null
+  assigned_at: string | null
+  created_at: string
+  route_addresses: {
+    id: string
+    address: string
+    city: string
+    state: string
+    zip: string
+  } | null
+}
+
 const statusConfig = {
   pending: { icon: Clock, label: "Pending", color: "text-gray-500" },
   not_home: { icon: Home, label: "Not Home", color: "text-amber-500" },
@@ -47,12 +63,15 @@ export default function RouteDetailPage() {
 
   const [route, setRoute] = useState<Route | null>(null)
   const [addresses, setAddresses] = useState<RouteAddress[]>([])
+  const [trackingCodes, setTrackingCodes] = useState<TrackingCode[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [generatingCodes, setGeneratingCodes] = useState(false)
+  const [showQrCodes, setShowQrCodes] = useState(false)
 
   useEffect(() => {
     if (routeId) {
       fetchRouteData()
+      fetchTrackingCodes()
     }
   }, [routeId])
 
@@ -69,6 +88,28 @@ export default function RouteDetailPage() {
       setIsLoading(false)
     }
   }
+
+  const fetchTrackingCodes = async () => {
+    try {
+      const response = await fetch(`/api/routes/${routeId}/tracking-codes`)
+      if (!response.ok) return
+      const data = await response.json()
+      setTrackingCodes(data.trackingCodes || [])
+    } catch (error) {
+      console.error("Error fetching tracking codes:", error)
+    }
+  }
+
+  // Create a map of address ID to tracking code
+  const addressToTrackingCode = trackingCodes.reduce((acc, code) => {
+    if (code.route_address_id) {
+      acc[code.route_address_id] = code
+    }
+    return acc
+  }, {} as Record<string, TrackingCode>)
+
+  const linkedCodesCount = trackingCodes.filter(c => c.route_address_id).length
+  const unlinkedCodesCount = trackingCodes.filter(c => !c.route_address_id).length
 
   const handlePrintQRCodes = async () => {
     if (!route) return
@@ -174,23 +215,35 @@ export default function RouteDetailPage() {
                 </div>
               </div>
             </div>
-            <Button
-              onClick={handlePrintQRCodes}
-              disabled={generatingCodes}
-              className="gap-2"
-            >
-              {generatingCodes ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparing...
-                </>
-              ) : (
-                <>
-                  <Printer className="h-4 w-4" />
-                  Print QR Codes
-                </>
+            <div className="flex items-center gap-2">
+              {trackingCodes.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowQrCodes(!showQrCodes)}
+                  className="gap-2"
+                >
+                  <QrCode className="h-4 w-4" />
+                  {showQrCodes ? "Show Addresses" : "Show QR Codes"}
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={handlePrintQRCodes}
+                disabled={generatingCodes}
+                className="gap-2"
+              >
+                {generatingCodes ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing...
+                  </>
+                ) : (
+                  <>
+                    <Printer className="h-4 w-4" />
+                    Print QR Codes
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -205,6 +258,22 @@ export default function RouteDetailPage() {
                 {route.address_count} Total Addresses
               </span>
             </div>
+            {trackingCodes.length > 0 && (
+              <>
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-emerald-500" />
+                  <span className="text-sm">
+                    {linkedCodesCount} Linked QR Codes
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link2Off className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm">
+                    {unlinkedCodesCount} Unlinked QR Codes
+                  </span>
+                </div>
+              </>
+            )}
             {Object.entries(statusCounts).map(([status, count]) => {
               const config = statusConfig[status as keyof typeof statusConfig]
               if (!config) return null
@@ -221,58 +290,142 @@ export default function RouteDetailPage() {
         </div>
       </div>
 
-      {/* Addresses List */}
+      {/* Addresses/QR Codes List */}
       <main className="container mx-auto flex-1 px-6 py-8">
         <ScrollArea className="h-full">
-          <div className="space-y-2">
-            {addresses.map((address, index) => {
-              const config = statusConfig[address.status as keyof typeof statusConfig]
-              const StatusIcon = config?.icon || Clock
-              
-              return (
-                <Card
-                  key={address.id}
-                  className="group overflow-hidden transition-all hover:border-emerald-500/50 hover:shadow-sm"
-                  style={{
-                    animationDelay: `${index * 30}ms`,
-                    animation: "fadeInUp 0.3s ease-out forwards",
-                    opacity: 0,
-                  }}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted transition-colors group-hover:bg-emerald-500/10`}>
-                        <StatusIcon className={`h-4 w-4 ${config?.color || "text-muted-foreground"}`} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium leading-tight">
-                          {address.address}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {address.city}, {address.state} {address.zip}
-                        </p>
-                        {address.notes && (
-                          <p className="mt-2 text-sm text-muted-foreground italic">
-                            {address.notes}
+          {showQrCodes ? (
+            /* QR Codes View */
+            <div className="space-y-2">
+              {trackingCodes.map((code, index) => {
+                const isLinked = !!code.route_address_id
+                
+                return (
+                  <Card
+                    key={code.id}
+                    className="group overflow-hidden transition-all hover:border-emerald-500/50 hover:shadow-sm"
+                    style={{
+                      animationDelay: `${index * 30}ms`,
+                      animation: "fadeInUp 0.3s ease-out forwards",
+                      opacity: 0,
+                    }}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${isLinked ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                          {isLinked ? (
+                            <Link2 className="h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <Link2Off className="h-4 w-4 text-amber-500" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-mono text-lg font-semibold tracking-wider">
+                            {code.code}
                           </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          #{index + 1}
-                        </Badge>
-                        {config && (
-                          <Badge variant="secondary" className="text-xs">
-                            {config.label}
+                          {code.route_addresses ? (
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              <span className="font-medium text-foreground">{code.route_addresses.address}</span>
+                              {" · "}
+                              {code.route_addresses.city}, {code.route_addresses.state}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-sm text-muted-foreground italic">
+                              Not assigned to any address
+                            </p>
+                          )}
+                          {code.assigned_at && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Linked {new Date(code.assigned_at).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <Badge variant="outline" className="font-mono text-[10px]">
+                            #{index + 1}
                           </Badge>
-                        )}
+                          <Badge 
+                            variant={isLinked ? "default" : "secondary"} 
+                            className={`text-xs ${isLinked ? 'bg-emerald-600' : ''}`}
+                          >
+                            {isLinked ? "Linked" : "Unlinked"}
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+              {trackingCodes.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+                    <QrCode className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-medium">No QR Codes Yet</h3>
+                  <p className="mb-4 max-w-sm text-sm text-muted-foreground">
+                    Print QR codes to generate tracking codes for this route.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Addresses View */
+            <div className="space-y-2">
+              {addresses.map((address, index) => {
+                const config = statusConfig[address.status as keyof typeof statusConfig]
+                const StatusIcon = config?.icon || Clock
+                const linkedCode = addressToTrackingCode[address.id]
+                
+                return (
+                  <Card
+                    key={address.id}
+                    className="group overflow-hidden transition-all hover:border-emerald-500/50 hover:shadow-sm"
+                    style={{
+                      animationDelay: `${index * 30}ms`,
+                      animation: "fadeInUp 0.3s ease-out forwards",
+                      opacity: 0,
+                    }}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted transition-colors group-hover:bg-emerald-500/10`}>
+                          <StatusIcon className={`h-4 w-4 ${config?.color || "text-muted-foreground"}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium leading-tight">
+                            {address.address}
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {address.city}, {address.state} {address.zip}
+                          </p>
+                          {address.notes && (
+                            <p className="mt-2 text-sm text-muted-foreground italic">
+                              {address.notes}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <Badge variant="outline" className="font-mono text-[10px]">
+                            #{index + 1}
+                          </Badge>
+                          {config && (
+                            <Badge variant="secondary" className="text-xs">
+                              {config.label}
+                            </Badge>
+                          )}
+                          {linkedCode && (
+                            <Badge variant="outline" className="gap-1 text-xs font-mono">
+                              <QrCode className="h-3 w-3" />
+                              {linkedCode.code}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </ScrollArea>
       </main>
 

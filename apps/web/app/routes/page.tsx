@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { MapPin, Calendar, Printer, Home, ChevronRight, Loader2 } from "lucide-react"
+import { MapPin, Calendar, Printer, Home, ChevronRight, Loader2, Search, QrCode, Link2, Link2Off, X } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardHeader } from "@workspace/ui/components/card"
 import { Badge } from "@workspace/ui/components/badge"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+import { Input } from "@workspace/ui/components/input"
 import QRCode from "qrcode"
 
 interface Route {
@@ -23,6 +24,25 @@ interface TrackingCode {
   code: string
 }
 
+interface SearchResult {
+  id: string
+  code: string
+  route_id: string
+  route_address_id: string | null
+  assigned_at: string | null
+  routes: {
+    id: string
+    name: string
+  }
+  route_addresses: {
+    id: string
+    address: string
+    city: string
+    state: string
+    zip: string
+  } | null
+}
+
 export default function RoutesPage() {
   const router = useRouter()
   const [routes, setRoutes] = useState<Route[]>([])
@@ -30,12 +50,60 @@ export default function RoutesPage() {
   const [generatingCodes, setGeneratingCodes] = useState<string | null>(null)
   const [printData, setPrintData] = useState<{ codes: TrackingCode[], qrDataUrls: Record<string, string> } | null>(null)
   const printContainerRef = useRef<HTMLDivElement>(null)
+  
+  // QR Code search state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const trackingBaseUrl = process.env.NEXT_PUBLIC_TRACKING_URL || "https://openturf.app/track"
 
   useEffect(() => {
     fetchRoutes()
   }, [])
+
+  // Debounced search
+  const handleSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const response = await fetch(`/api/tracking-codes/search?code=${encodeURIComponent(query)}`)
+      if (!response.ok) throw new Error("Search failed")
+      const data = await response.json()
+      setSearchResults(data.results || [])
+      setShowSearchResults(true)
+    } catch (error) {
+      console.error("Error searching:", error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  const handleSearchInput = (value: string) => {
+    setSearchQuery(value)
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      handleSearch(value)
+    }, 300)
+  }
+
+  const clearSearch = () => {
+    setSearchQuery("")
+    setSearchResults([])
+    setShowSearchResults(false)
+  }
 
   const fetchRoutes = async () => {
     try {
@@ -130,14 +198,105 @@ export default function RoutesPage() {
                 <p className="text-sm text-muted-foreground">Saved Routes</p>
               </div>
             </div>
-            <Button
-              onClick={() => router.push("/")}
-              variant="outline"
-              className="gap-2"
-            >
-              <Home className="h-4 w-4" />
-              Back to Map
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* QR Code Search */}
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search QR code..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchInput(e.target.value)}
+                    className="w-64 pl-9 pr-9"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  {isSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Search Results Dropdown */}
+                {showSearchResults && searchResults.length > 0 && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-96 rounded-lg border border-border bg-background p-2 shadow-lg">
+                    <p className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                      {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
+                    </p>
+                    <div className="mt-1 max-h-80 overflow-auto space-y-1">
+                      {searchResults.map((result) => (
+                        <button
+                          key={result.id}
+                          onClick={() => {
+                            router.push(`/routes/${result.route_id}`)
+                            clearSearch()
+                          }}
+                          className="w-full rounded-md p-3 text-left transition-colors hover:bg-muted"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${result.route_address_id ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                              {result.route_address_id ? (
+                                <Link2 className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <Link2Off className="h-4 w-4 text-amber-500" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-mono text-sm font-semibold tracking-wider">
+                                {result.code}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                Route: {result.routes.name}
+                              </p>
+                              {result.route_addresses ? (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {result.route_addresses.address}, {result.route_addresses.city}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-amber-600 italic">
+                                  Not linked to an address
+                                </p>
+                              )}
+                            </div>
+                            <Badge 
+                              variant={result.route_address_id ? "default" : "secondary"}
+                              className={`shrink-0 text-[10px] ${result.route_address_id ? 'bg-emerald-600' : ''}`}
+                            >
+                              {result.route_address_id ? "Linked" : "Unlinked"}
+                            </Badge>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {showSearchResults && searchResults.length === 0 && searchQuery && !isSearching && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-border bg-background p-4 shadow-lg text-center">
+                    <QrCode className="mx-auto h-8 w-8 text-muted-foreground" />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No QR codes found matching "{searchQuery}"
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <Button
+                onClick={() => router.push("/")}
+                variant="outline"
+                className="gap-2"
+              >
+                <Home className="h-4 w-4" />
+                Back to Map
+              </Button>
+            </div>
           </div>
         </div>
       </header>

@@ -11,7 +11,21 @@ export async function GET(
 
     const { data: trackingCodes, error } = await supabase
       .from("tracking_codes")
-      .select("*")
+      .select(`
+        id,
+        code,
+        route_id,
+        route_address_id,
+        assigned_at,
+        created_at,
+        route_addresses (
+          id,
+          address,
+          city,
+          state,
+          zip
+        )
+      `)
       .eq("route_id", id)
       .order("created_at", { ascending: true })
 

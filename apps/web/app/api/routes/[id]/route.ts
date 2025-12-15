@@ -32,7 +32,30 @@ export async function GET(
 
     if (addressesError) throw addressesError
 
-    return NextResponse.json({ route, addresses })
+    // Fetch tracking codes for this route to map to addresses
+    const { data: trackingCodes, error: trackingCodesError } = await supabase
+      .from("tracking_codes")
+      .select("code, route_address_id")
+      .eq("route_id", id)
+      .not("route_address_id", "is", null)
+
+    // Create a map of address ID to tracking code
+    const addressToCode: Record<string, string> = {}
+    if (!trackingCodesError && trackingCodes) {
+      for (const tc of trackingCodes) {
+        if (tc.route_address_id) {
+          addressToCode[tc.route_address_id] = tc.code
+        }
+      }
+    }
+
+    // Add tracking_code to each address
+    const addressesWithCodes = addresses?.map(addr => ({
+      ...addr,
+      tracking_code: addressToCode[addr.id] || null,
+    }))
+
+    return NextResponse.json({ route, addresses: addressesWithCodes })
   } catch (error) {
     console.error("Error in GET /api/routes/[id]:", error)
     return NextResponse.json(
