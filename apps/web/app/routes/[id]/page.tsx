@@ -67,6 +67,7 @@ export default function RouteDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [generatingCodes, setGeneratingCodes] = useState(false)
   const [showQrCodes, setShowQrCodes] = useState(false)
+  const [unlinkingCode, setUnlinkingCode] = useState<string | null>(null)
 
   useEffect(() => {
     if (routeId) {
@@ -110,6 +111,34 @@ export default function RouteDetailPage() {
 
   const linkedCodesCount = trackingCodes.filter(c => c.route_address_id).length
   const unlinkedCodesCount = trackingCodes.filter(c => !c.route_address_id).length
+
+  const handleUnlinkCode = async (code: string) => {
+    if (!confirm("Are you sure you want to unlink this QR code from its address?")) {
+      return
+    }
+    
+    setUnlinkingCode(code)
+    try {
+      const response = await fetch("/api/tracking-codes/unlink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to unlink code")
+      }
+
+      // Refresh tracking codes
+      await fetchTrackingCodes()
+    } catch (error) {
+      console.error("Error unlinking code:", error)
+      alert(error instanceof Error ? error.message : "Failed to unlink code")
+    } finally {
+      setUnlinkingCode(null)
+    }
+  }
 
   const handlePrintQRCodes = async () => {
     if (!route) return
@@ -349,6 +378,22 @@ export default function RouteDetailPage() {
                           >
                             {isLinked ? "Linked" : "Unlinked"}
                           </Badge>
+                          {isLinked && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-xs text-muted-foreground hover:text-destructive"
+                              onClick={() => handleUnlinkCode(code.code)}
+                              disabled={unlinkingCode === code.code}
+                            >
+                              {unlinkingCode === code.code ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Link2Off className="h-3 w-3" />
+                              )}
+                              Unlink
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -413,10 +458,26 @@ export default function RouteDetailPage() {
                             </Badge>
                           )}
                           {linkedCode && (
-                            <Badge variant="outline" className="gap-1 text-xs font-mono">
-                              <QrCode className="h-3 w-3" />
-                              {linkedCode.code}
-                            </Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="gap-1 text-xs font-mono">
+                                <QrCode className="h-3 w-3" />
+                                {linkedCode.code}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleUnlinkCode(linkedCode.code)}
+                                disabled={unlinkingCode === linkedCode.code}
+                                title="Unlink QR code"
+                              >
+                                {unlinkingCode === linkedCode.code ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Link2Off className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
