@@ -2,13 +2,48 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { MapPin, Calendar, Printer, Home, ChevronRight, Loader2, Search, QrCode, Link2, Link2Off, X } from "lucide-react"
+import { MapPin, Calendar, Printer, Home, ChevronRight, Loader2, Search, QrCode, Link2, Link2Off, X, Settings2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardHeader } from "@workspace/ui/components/card"
 import { Badge } from "@workspace/ui/components/badge"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Input } from "@workspace/ui/components/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import QRCode from "qrcode"
+
+// Avery label templates
+const averyTemplates = {
+  "6570": {
+    name: "Avery 6570 - ID Labels",
+    description: "1-1/4\" x 1-3/4\" - 32 labels per sheet",
+    page: {
+      width: 8.5,
+      height: 11,
+      unit: "in"
+    },
+    label: {
+      width: 1.75,        // 1-3/4 inches
+      height: 1.25,       // 1-1/4 inches
+      cornerRadius: 0.0
+    },
+    layout: {
+      cols: 4,
+      rows: 8,
+      topMargin: 0.5,
+      leftMargin: 0.46875, // 15/32 inches
+      colSpacing: 0.1875,  // 3/16 inches
+      rowSpacing: 0.0
+    }
+  },
+} as const
+
+type TemplateId = keyof typeof averyTemplates
 
 interface Route {
   id: string
@@ -51,6 +86,9 @@ export default function RoutesPage() {
   const [printData, setPrintData] = useState<{ codes: TrackingCode[], qrDataUrls: Record<string, string> } | null>(null)
   const printContainerRef = useRef<HTMLDivElement>(null)
   
+  // Template selection state
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>("6570")
+  
   // QR Code search state
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -58,7 +96,7 @@ export default function RoutesPage() {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const trackingBaseUrl = process.env.NEXT_PUBLIC_TRACKING_URL || "https://openturf.app/track"
+  const currentTemplate = averyTemplates[selectedTemplate]
 
   useEffect(() => {
     fetchRoutes()
@@ -121,6 +159,11 @@ export default function RoutesPage() {
   const handlePrintQRCodes = async (routeId: string, addressCount: number) => {
     setGeneratingCodes(routeId)
     try {
+      // Fetch route details to get destination_url
+      const routeResponse = await fetch(`/api/routes/${routeId}`)
+      const routeData = await routeResponse.json()
+      const destinationUrl = routeData.route?.destination_url || "https://www.brightersettings.com/"
+      
       // First, check if codes already exist
       const checkResponse = await fetch(`/api/routes/${routeId}/tracking-codes`)
       const checkData = await checkResponse.json()
@@ -144,11 +187,13 @@ export default function RoutesPage() {
         trackingCodes = data.trackingCodes || []
       }
 
-      // Generate QR code data URLs
+      // Generate QR code data URLs - pointing directly to destination with tracking params
       const qrDataUrls: Record<string, string> = {}
       for (const trackingCode of trackingCodes) {
-        const url = `${trackingBaseUrl}/${trackingCode.code}`
-        const dataUrl = await QRCode.toDataURL(url, {
+        const url = new URL(destinationUrl)
+        url.searchParams.set("c", trackingCode.code)
+        
+        const dataUrl = await QRCode.toDataURL(url.toString(), {
           width: 400,
           margin: 1,
           errorCorrectionLevel: "M",
@@ -199,6 +244,26 @@ export default function RoutesPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Print Template Selector */}
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedTemplate} onValueChange={(value) => setSelectedTemplate(value as TemplateId)}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder="Select template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(averyTemplates).map(([id, template]) => (
+                      <SelectItem key={id} value={id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{template.name}</span>
+                          <span className="text-xs text-muted-foreground">{template.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               {/* QR Code Search */}
               <div className="relative">
                 <div className="relative">
@@ -411,9 +476,27 @@ export default function RoutesPage() {
       {/* Hidden print container - only visible when printing */}
       {printData && (
         <div ref={printContainerRef} className="hidden print:block">
-          <div className="qr-labels-grid">
+          <div 
+            className="qr-labels-grid"
+            style={{
+              // Dynamic grid based on template
+              gridTemplateColumns: `repeat(${currentTemplate.layout.cols}, ${currentTemplate.label.width}in)`,
+              gridTemplateRows: `repeat(${currentTemplate.layout.rows}, ${currentTemplate.label.height}in)`,
+              columnGap: `${currentTemplate.layout.colSpacing}in`,
+              rowGap: `${currentTemplate.layout.rowSpacing}in`,
+              marginTop: `${currentTemplate.layout.topMargin}in`,
+              marginLeft: `${currentTemplate.layout.leftMargin}in`,
+            }}
+          >
             {printData.codes.map((trackingCode) => (
-              <div key={trackingCode.code} className="qr-label">
+              <div 
+                key={trackingCode.code} 
+                className="qr-label"
+                style={{
+                  width: `${currentTemplate.label.width}in`,
+                  height: `${currentTemplate.label.height}in`,
+                }}
+              >
                 <div className="qr-code-container">
                   {printData.qrDataUrls[trackingCode.code] && (
                     <img
@@ -423,7 +506,9 @@ export default function RoutesPage() {
                     />
                   )}
                 </div>
-                <div className="qr-code-text">{trackingCode.code}</div>
+                <div className="qr-label-text">
+                  <div className="qr-code-text">{trackingCode.code}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -446,7 +531,7 @@ export default function RoutesPage() {
         @media print {
           @page {
             size: letter;
-            margin: 0.19in;
+            margin: 0;
           }
 
           body {
@@ -463,35 +548,32 @@ export default function RoutesPage() {
           }
         }
 
-        /* Avery 22806 Square Labels - 12 labels per sheet (3 columns x 4 rows) */
+        /* Label grid - dynamically styled via inline styles */
         .qr-labels-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1.5in);
-          grid-template-rows: repeat(4, 1.5in);
-          gap: 0.19in;
           width: fit-content;
-          margin: 0 auto;
         }
 
+        /* Individual label - QR code on left, text on right */
         .qr-label {
-          width: 1.5in;
-          height: 1.5in;
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
-          justify-content: center;
-          padding: 0.1in;
+          justify-content: flex-start;
+          padding: 0.08in;
           box-sizing: border-box;
           page-break-inside: avoid;
           break-inside: avoid;
+          gap: 0.08in;
         }
 
         .qr-code-container {
-          width: 1.1in;
-          height: 1.1in;
+          width: 1in;
+          height: 1in;
           display: flex;
           align-items: center;
           justify-content: center;
+          flex-shrink: 0;
         }
 
         .qr-code-image {
@@ -500,14 +582,25 @@ export default function RoutesPage() {
           object-fit: contain;
         }
 
+        .qr-label-text {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          flex: 1;
+          min-width: 0;
+          height: 100%;
+        }
+
         .qr-code-text {
-          margin-top: 0.05in;
-          font-size: 8pt;
+          font-size: 7pt;
           font-family: 'Courier New', monospace;
           font-weight: 600;
-          text-align: center;
           color: #1f2937;
-          letter-spacing: 0.5px;
+          letter-spacing: 1px;
+          writing-mode: vertical-rl;
+          text-orientation: mixed;
+          white-space: nowrap;
         }
 
         /* Ensure proper page breaks */

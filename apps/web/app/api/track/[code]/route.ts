@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 
-// GET - Get tracking information for a code
+// GET - Get tracking information for a code and record the scan
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ code: string }> }
@@ -23,10 +23,10 @@ export async function GET(
       )
     }
 
-    // Fetch route info
+    // Fetch route info including destination URL and campaign name
     const { data: route, error: routeError } = await supabase
       .from("routes")
-      .select("id, name")
+      .select("id, name, destination_url, campaign_name")
       .eq("id", trackingCode.route_id)
       .single()
 

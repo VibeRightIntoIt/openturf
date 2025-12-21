@@ -15,13 +15,15 @@ interface CreateRouteRequest {
   name: string
   polygon: number[][]
   addresses: Address[]
+  destinationUrl?: string
+  campaignName?: string
 }
 
 // POST - Create a new route
 export async function POST(request: Request) {
   try {
     const body: CreateRouteRequest = await request.json()
-    const { name, polygon, addresses } = body
+    const { name, polygon, addresses, destinationUrl, campaignName } = body
 
     if (!name || !polygon || !addresses || addresses.length === 0) {
       return NextResponse.json(
@@ -43,6 +45,8 @@ export async function POST(request: Request) {
         center_lat: centerLat,
         center_lng: centerLng,
         address_count: addresses.length,
+        destination_url: destinationUrl || "https://www.brightersettings.com/",
+        campaign_name: campaignName || null,
       })
       .select()
       .single()

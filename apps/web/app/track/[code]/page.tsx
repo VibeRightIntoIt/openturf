@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { MapPin, CheckCircle2, Loader2 } from "lucide-react"
+import { MapPin, CheckCircle2, Loader2, ExternalLink } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardHeader } from "@workspace/ui/components/card"
 
 interface TrackingInfo {
   code: string
   routeName: string
+  campaignName: string | null
   address: string | null
   city: string | null
   state: string | null
   zip: string | null
+  redirectUrl: string
 }
 
 export default function TrackPage() {
@@ -22,12 +24,35 @@ export default function TrackPage() {
   const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [redirecting, setRedirecting] = useState(false)
+  const [countdown, setCountdown] = useState(3)
 
   useEffect(() => {
     if (trackingCode) {
       fetchTrackingInfo()
     }
   }, [trackingCode])
+
+  // Auto-redirect after fetching tracking info
+  useEffect(() => {
+    if (trackingInfo?.redirectUrl && !redirecting) {
+      setRedirecting(true)
+      
+      // Countdown timer
+      const countdownInterval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval)
+            window.location.href = trackingInfo.redirectUrl
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+
+      return () => clearInterval(countdownInterval)
+    }
+  }, [trackingInfo, redirecting])
 
   const fetchTrackingInfo = async () => {
     try {
@@ -41,6 +66,12 @@ export default function TrackPage() {
       setError("Invalid or expired tracking code")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleRedirectNow = () => {
+    if (trackingInfo?.redirectUrl) {
+      window.location.href = trackingInfo.redirectUrl
     }
   }
 
@@ -80,54 +111,55 @@ export default function TrackPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10">
             <CheckCircle2 className="h-8 w-8 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-bold">OpenTurf</h1>
-          <p className="text-sm text-muted-foreground">Door-to-Door Tracking</p>
+          <h1 className="text-2xl font-bold">
+            {trackingInfo.campaignName || "Brighter Settings"}
+          </h1>
+          <p className="text-sm text-muted-foreground">Thanks for scanning!</p>
         </CardHeader>
         
         <CardContent className="space-y-6">
+          {/* Redirect countdown */}
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-center">
+            <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
+              Redirecting you in <span className="font-bold text-lg">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+            </p>
+            <Button 
+              onClick={handleRedirectNow}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Continue Now
+            </Button>
+          </div>
+
           <div className="rounded-lg bg-muted/50 p-4">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Tracking Code
             </p>
-            <p className="text-2xl font-mono font-bold text-center tracking-wider">
+            <p className="text-xl font-mono font-bold text-center tracking-wider">
               {trackingInfo.code}
             </p>
           </div>
 
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Route
-            </p>
-            <p className="text-base font-medium">
-              {trackingInfo.routeName}
-            </p>
-          </div>
-
-          {trackingInfo.address ? (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                Address
+          {trackingInfo.address && (
+            <div className="text-center">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                Your Address
               </p>
-              <p className="text-base font-medium">
+              <p className="text-sm font-medium">
                 {trackingInfo.address}
               </p>
               {trackingInfo.city && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {trackingInfo.city}, {trackingInfo.state} {trackingInfo.zip}
                 </p>
               )}
             </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                This tracking code has not been assigned to an address yet.
-              </p>
-            </div>
           )}
 
-          <div className="pt-4">
+          <div className="pt-2">
             <p className="text-xs text-muted-foreground text-center">
-              This QR code is used to track door-to-door sales activities.
+              Your visit has been recorded. You'll be redirected to learn more.
             </p>
           </div>
         </CardContent>
