@@ -476,42 +476,58 @@ export default function RoutesPage() {
       {/* Hidden print container - only visible when printing */}
       {printData && (
         <div ref={printContainerRef} className="hidden print:block">
-          <div 
-            className="qr-labels-grid"
-            style={{
-              // Dynamic grid based on template
-              gridTemplateColumns: `repeat(${currentTemplate.layout.cols}, ${currentTemplate.label.width}in)`,
-              gridTemplateRows: `repeat(${currentTemplate.layout.rows}, ${currentTemplate.label.height}in)`,
-              columnGap: `${currentTemplate.layout.colSpacing}in`,
-              rowGap: `${currentTemplate.layout.rowSpacing}in`,
-              marginTop: `${currentTemplate.layout.topMargin}in`,
-              marginLeft: `${currentTemplate.layout.leftMargin}in`,
-            }}
-          >
-            {printData.codes.map((trackingCode) => (
+          {/* Split codes into pages based on labels per page */}
+          {(() => {
+            const labelsPerPage = currentTemplate.layout.cols * currentTemplate.layout.rows
+            const pages: TrackingCode[][] = []
+            for (let i = 0; i < printData.codes.length; i += labelsPerPage) {
+              pages.push(printData.codes.slice(i, i + labelsPerPage))
+            }
+            return pages.map((pageCodes, pageIndex) => (
               <div 
-                key={trackingCode.code} 
-                className="qr-label"
+                key={pageIndex}
+                className="qr-labels-page"
                 style={{
-                  width: `${currentTemplate.label.width}in`,
-                  height: `${currentTemplate.label.height}in`,
+                  paddingTop: `${currentTemplate.layout.topMargin}in`,
+                  paddingLeft: `${currentTemplate.layout.leftMargin}in`,
                 }}
               >
-                <div className="qr-code-container">
-                  {printData.qrDataUrls[trackingCode.code] && (
-                    <img
-                      src={printData.qrDataUrls[trackingCode.code]}
-                      alt={`QR Code ${trackingCode.code}`}
-                      className="qr-code-image"
-                    />
-                  )}
-                </div>
-                <div className="qr-label-text">
-                  <div className="qr-code-text">{trackingCode.code}</div>
+                <div 
+                  className="qr-labels-grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${currentTemplate.layout.cols}, ${currentTemplate.label.width}in)`,
+                    gridTemplateRows: `repeat(${currentTemplate.layout.rows}, ${currentTemplate.label.height}in)`,
+                    columnGap: `${currentTemplate.layout.colSpacing}in`,
+                    rowGap: `${currentTemplate.layout.rowSpacing}in`,
+                  }}
+                >
+                  {pageCodes.map((trackingCode) => (
+                    <div 
+                      key={trackingCode.code} 
+                      className="qr-label"
+                      style={{
+                        width: `${currentTemplate.label.width}in`,
+                        height: `${currentTemplate.label.height}in`,
+                      }}
+                    >
+                      <div className="qr-code-container">
+                        {printData.qrDataUrls[trackingCode.code] && (
+                          <img
+                            src={printData.qrDataUrls[trackingCode.code]}
+                            alt={`QR Code ${trackingCode.code}`}
+                            className="qr-code-image"
+                          />
+                        )}
+                      </div>
+                      <div className="qr-label-text">
+                        <div className="qr-code-text">{trackingCode.code}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            ))
+          })()}
         </div>
       )}
 
@@ -546,6 +562,20 @@ export default function RoutesPage() {
           .print\\:block {
             display: block !important;
           }
+        }
+
+        /* Page container for each sheet of labels */
+        .qr-labels-page {
+          width: 8.5in;
+          height: 11in;
+          box-sizing: border-box;
+          page-break-after: always;
+          break-after: page;
+        }
+
+        .qr-labels-page:last-child {
+          page-break-after: auto;
+          break-after: auto;
         }
 
         /* Label grid - dynamically styled via inline styles */
@@ -603,16 +633,6 @@ export default function RoutesPage() {
           white-space: nowrap;
         }
 
-        /* Ensure proper page breaks */
-        @media print {
-          .qr-labels-grid {
-            page-break-after: always;
-          }
-
-          .qr-labels-grid:last-child {
-            page-break-after: auto;
-          }
-        }
       `}</style>
     </div>
   )
