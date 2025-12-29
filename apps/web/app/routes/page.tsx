@@ -550,9 +550,16 @@ export default function RoutesPage() {
             margin: 0;
           }
 
-          body {
-            margin: 0;
-            padding: 0;
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 8.5in;
+            height: 11in;
           }
 
           .print\\:hidden {
@@ -562,75 +569,89 @@ export default function RoutesPage() {
           .print\\:block {
             display: block !important;
           }
+
+          /* Page container for each sheet of labels */
+          .qr-labels-page {
+            position: relative;
+            width: 8.5in;
+            height: 11in;
+            overflow: hidden;
+            box-sizing: border-box;
+            page-break-after: always;
+            break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          .qr-labels-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+
+          /* Label grid - dynamically styled via inline styles */
+          .qr-labels-grid {
+            display: grid;
+            width: fit-content;
+          }
+
+          /* Individual label - QR code on left, text on right */
+          .qr-label {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0.08in;
+            box-sizing: border-box;
+            overflow: hidden;
+            gap: 0.08in;
+          }
+
+          .qr-code-container {
+            width: 1in;
+            height: 1in;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+
+          .qr-code-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          }
+
+          .qr-label-text {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+          }
+
+          .qr-code-text {
+            font-size: 7pt;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #1f2937;
+            letter-spacing: 1px;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            white-space: nowrap;
+          }
         }
 
-        /* Page container for each sheet of labels */
-        .qr-labels-page {
-          width: 8.5in;
-          height: 11in;
-          box-sizing: border-box;
-          page-break-after: always;
-          break-after: page;
-        }
-
-        .qr-labels-page:last-child {
-          page-break-after: auto;
-          break-after: auto;
-        }
-
-        /* Label grid - dynamically styled via inline styles */
-        .qr-labels-grid {
-          display: grid;
-          width: fit-content;
-        }
-
-        /* Individual label - QR code on left, text on right */
-        .qr-label {
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 0.08in;
-          box-sizing: border-box;
-          page-break-inside: avoid;
-          break-inside: avoid;
-          gap: 0.08in;
-        }
-
-        .qr-code-container {
-          width: 1in;
-          height: 1in;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .qr-code-image {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-        }
-
-        .qr-label-text {
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          flex: 1;
-          min-width: 0;
-          height: 100%;
-        }
-
+        /* Screen styles for hidden print container */
+        .qr-labels-page,
+        .qr-labels-grid,
+        .qr-label,
+        .qr-code-container,
+        .qr-code-image,
+        .qr-label-text,
         .qr-code-text {
-          font-size: 7pt;
-          font-family: 'Courier New', monospace;
-          font-weight: 600;
-          color: #1f2937;
-          letter-spacing: 1px;
-          writing-mode: vertical-rl;
-          text-orientation: mixed;
-          white-space: nowrap;
+          /* These are only visible during print */
         }
 
       `}</style>
