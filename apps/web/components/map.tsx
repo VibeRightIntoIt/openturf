@@ -51,7 +51,7 @@ function isPointInPolygon(point: [number, number], polygon: number[][]): boolean
   return inside
 }
 
-export const Map = forwardRef<MapRef, MapProps>(function Map(
+export const Map = forwardRef<MapRef, MapProps>(function MapComponent(
   { accessToken, viewportAddresses = [], polygonAddresses = [], polygonAddressIds = new Set(), onPolygonCreate, onPolygonDelete, onViewportChange },
   ref
 ) {
@@ -279,7 +279,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     if (!map.current) return
 
     // Merge viewport and polygon addresses, with polygon addresses taking priority
-    const addressMap = new Map<string, Address>()
+    const addressMap = new globalThis.Map<string, Address>()
     viewportAddresses.forEach((a) => addressMap.set(a.id, a))
     polygonAddresses.forEach((a) => addressMap.set(a.id, a))
     const allAddresses = Array.from(addressMap.values())
