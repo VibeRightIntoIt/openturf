@@ -34,13 +34,6 @@ export async function POST(request: Request) {
       )
     }
 
-    if (trackingCode.route_id !== routeId) {
-      return NextResponse.json(
-        { error: "Tracking code does not belong to this route" },
-        { status: 400 }
-      )
-    }
-
     if (trackingCode.route_address_id) {
       return NextResponse.json(
         { error: "Tracking code is already assigned to an address" },
