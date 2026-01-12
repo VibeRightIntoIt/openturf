@@ -19,6 +19,7 @@ export interface Address {
 interface MapProps {
   accessToken: string
   viewportAddresses?: Address[]
+  polygonAddresses?: Address[]
   polygonAddressIds?: Set<string>
   onPolygonCreate: (coordinates: number[][]) => void
   onPolygonDelete: () => void
@@ -51,7 +52,7 @@ function isPointInPolygon(point: [number, number], polygon: number[][]): boolean
 }
 
 export const Map = forwardRef<MapRef, MapProps>(function Map(
-  { accessToken, viewportAddresses = [], polygonAddressIds = new Set(), onPolygonCreate, onPolygonDelete, onViewportChange },
+  { accessToken, viewportAddresses = [], polygonAddresses = [], polygonAddressIds = new Set(), onPolygonCreate, onPolygonDelete, onViewportChange },
   ref
 ) {
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -277,10 +278,16 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
   useEffect(() => {
     if (!map.current) return
 
-    const currentMarkerIds = new Set(markers.current.keys())
-    const newAddressIds = new Set(viewportAddresses.map((a) => a.id))
+    // Merge viewport and polygon addresses, with polygon addresses taking priority
+    const addressMap = new Map<string, Address>()
+    viewportAddresses.forEach((a) => addressMap.set(a.id, a))
+    polygonAddresses.forEach((a) => addressMap.set(a.id, a))
+    const allAddresses = Array.from(addressMap.values())
 
-    // Remove markers that are no longer in viewport
+    const currentMarkerIds = new Set(markers.current.keys())
+    const newAddressIds = new Set(allAddresses.map((a) => a.id))
+
+    // Remove markers that are no longer needed
     currentMarkerIds.forEach((id) => {
       if (!newAddressIds.has(id)) {
         markers.current.get(id)?.remove()
@@ -289,7 +296,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
     })
 
     // Add or update markers
-    viewportAddresses.forEach((address, index) => {
+    allAddresses.forEach((address, index) => {
       const isInPolygon = polygonAddressIds.has(address.id)
       const existingMarker = markers.current.get(address.id)
 
@@ -367,7 +374,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(
         markers.current.set(address.id, marker)
       }
     })
-  }, [viewportAddresses, polygonAddressIds])
+  }, [viewportAddresses, polygonAddresses, polygonAddressIds])
 
   return (
     <div

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Map, type MapRef, type Address, isPointInPolygon } from "@/components/map"
+import { Map, type MapRef, type Address } from "@/components/map"
 import { AddressPanel } from "@/components/address-panel"
 import { AddressSearch } from "@/components/address-search"
 import { Button } from "@workspace/ui/components/button"
@@ -10,31 +10,20 @@ import { Button } from "@workspace/ui/components/button"
 export default function Page() {
   const router = useRouter()
   const [viewportAddresses, setViewportAddresses] = useState<Address[]>([])
+  const [polygonAddresses, setPolygonAddresses] = useState<Address[]>([])
   const [currentPolygon, setCurrentPolygon] = useState<number[][] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingPolygon, setIsLoadingPolygon] = useState(false)
   const [viewportTooLarge, setViewportTooLarge] = useState(false)
   const [isSatellite, setIsSatellite] = useState(false)
   const mapRef = useRef<MapRef>(null)
   const fetchController = useRef<AbortController | null>(null)
+  const polygonFetchController = useRef<AbortController | null>(null)
 
-  // Calculate which addresses are inside the polygon
+  // Get the set of polygon address IDs for map highlighting
   const polygonAddressIds = useMemo(() => {
-    if (!currentPolygon || currentPolygon.length < 3) {
-      return new Set<string>()
-    }
-    const ids = new Set<string>()
-    viewportAddresses.forEach((address) => {
-      if (isPointInPolygon([address.lng, address.lat], currentPolygon)) {
-        ids.add(address.id)
-      }
-    })
-    return ids
-  }, [viewportAddresses, currentPolygon])
-
-  // Get addresses inside polygon for the panel
-  const polygonAddresses = useMemo(() => {
-    return viewportAddresses.filter((a) => polygonAddressIds.has(a.id))
-  }, [viewportAddresses, polygonAddressIds])
+    return new Set(polygonAddresses.map((a) => a.id))
+  }, [polygonAddresses])
 
   const hasPolygon = currentPolygon !== null && currentPolygon.length >= 3
 
@@ -84,22 +73,58 @@ export default function Page() {
     []
   )
 
-  const handlePolygonCreate = useCallback((coordinates: number[][]) => {
+  const handlePolygonCreate = useCallback(async (coordinates: number[][]) => {
     setCurrentPolygon(coordinates)
+    
+    // Cancel any in-flight polygon request
+    if (polygonFetchController.current) {
+      polygonFetchController.current.abort()
+    }
+    polygonFetchController.current = new AbortController()
+
+    setIsLoadingPolygon(true)
+
+    try {
+      const response = await fetch("/api/addresses/polygon", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ polygon: coordinates }),
+        signal: polygonFetchController.current.signal,
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch polygon addresses")
+      }
+
+      const data = await response.json()
+      setPolygonAddresses(data.addresses || [])
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return
+      }
+      console.error("Error fetching polygon addresses:", error)
+    } finally {
+      setIsLoadingPolygon(false)
+    }
   }, [])
 
   const handlePolygonDelete = useCallback(() => {
     setCurrentPolygon(null)
+    setPolygonAddresses([])
   }, [])
 
   const handleClear = useCallback(() => {
     setCurrentPolygon(null)
+    setPolygonAddresses([])
     mapRef.current?.resetPolygon()
   }, [])
 
   const handleRedraw = useCallback(() => {
     mapRef.current?.resetPolygon()
     setCurrentPolygon(null)
+    setPolygonAddresses([])
   }, [])
 
   const handleToggleSatellite = useCallback(() => {
@@ -123,6 +148,7 @@ export default function Page() {
           ref={mapRef}
           accessToken={mapboxToken}
           viewportAddresses={viewportAddresses}
+          polygonAddresses={polygonAddresses}
           polygonAddressIds={polygonAddressIds}
           onPolygonCreate={handlePolygonCreate}
           onPolygonDelete={handlePolygonDelete}
@@ -300,7 +326,7 @@ export default function Page() {
       {/* Address Panel */}
       <AddressPanel
         addresses={polygonAddresses}
-        isLoading={isLoading}
+        isLoading={isLoadingPolygon}
         hasPolygon={hasPolygon}
         polygon={currentPolygon}
         onClear={handleClear}
